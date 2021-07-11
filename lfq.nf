@@ -1,18 +1,21 @@
 #!/usr/bin/env nextflow
 
-// directory with mzML files
-params.input = "$baseDir/data/*.mzML"
-//params.input = "/Users/lars/Code/rnaseq-nf/data/*.mzML"
-
-ch_database = Channel.value("$baseDir/data/W82_soybase_a2v1_and_pMOZ52.fasta")
-ch_msgfplus = Channel.value("/Volumes/GoogleDrive/Shared drives/LCMS/Analyses/soybean analysis 20210527/MSGFPlus.jar")
-
 /*
  * channels for peptide identification and peptide quantification
  * The channel contains pairs of an unique ID (base name of the file) and the mzML file itself.
  * Note that the unique ID is passed through (nearly) all processes of the workflow in order to match corresponding files.
  */
+//params.input = "$baseDir/data/*.mzML"
+params.input = "/Users/lars/Code/rnaseq-nf/data/*.mzML"
 Channel.fromPath(params.input).map { file -> [file.baseName, file ]}.into { ch_1; ch_2 }
+
+/*
+ * channels for the protein database and the MS-GF+ search engine executable
+ */
+params.database = "$baseDir/data/W82_soybase_a2v1_and_pMOZ52.fasta"
+params.msgfplus = "/Volumes/GoogleDrive/Shared drives/LCMS/Analyses/soybean analysis 20210527/MSGFPlus.jar"
+ch_database = Channel.value(params.database)
+ch_msgfplus = Channel.value(params.msgfplus)
 
 /*
  * detect peptide features in MS1 spaectral data
@@ -333,14 +336,14 @@ process protein_inference {
  */
 process protein_quantification {
 
-  publishDir "$baseDir/data/results", mode: 'copy', pattern: '*.mzTab'
+  publishDir "$baseDir/data/results", mode: 'copy'
 
   input:
     path file_consensusXML from ch_19
     path file_idXML from ch_24
 
   output:
-    path "out.mzTab" into ch_25
+    path "out.csv" into ch_25
 
   script:
   """
