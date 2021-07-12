@@ -3,7 +3,6 @@
 // clear && nextflow run lfq.nf -ansi-log false -resume
 
 params.input = "$baseDir/data/*.mzML"
-//params.input = "/Users/lars/Code/rnaseq-nf/data/*.mzML"
 params.output = "$baseDir/results"
 params.database = "$baseDir/data/W82_soybase_a2v1_and_pMOZ52.fasta"
 params.msgfplus = "/Volumes/GoogleDrive/Shared drives/LCMS/Analyses/soybean analysis 20210527/MSGFPlus.jar"
@@ -176,12 +175,12 @@ process mztab_export_peptide_id {
     tuple uid, path(file_idXML) from ch_12
 
   output:
-    tuple uid, path("${uid}_id.mzTab") into ch_14
+    tuple uid, path("${uid}.mzTab") into ch_14
 
   script:
   """
   MzTabExporter -in ${file_idXML} \\
-                -out ${uid}_id.mzTab
+                -out ${uid}.mzTab
   """
 }
 
@@ -221,12 +220,12 @@ process link_maps {
     path files_featureXML from ch_15.collect()
 
   output:
-    path "out.consensusXML" into ch_16
+    path "out_linked.consensusXML" into ch_16
 
   script:
   """
   FeatureLinkerUnlabeledQT -in ${(files_featureXML as List).join(' ')}  \\
-           -out out.consensusXML \\
+           -out out_linked.consensusXML \\
            -algorithm:distance_RT:max_difference 200.0 \\
            -algorithm:distance_MZ:max_difference 20.0 \\
            -algorithm:distance_MZ:unit ppm
@@ -244,12 +243,12 @@ process clean_up_ids {
     path file_consensusXML from ch_16
 
   output:
-    path "out.consensusXML" into ch_17
+    path "out_clean.consensusXML" into ch_17
 
   script:
   """
   IDConflictResolver -in ${file_consensusXML}  \\
-           -out out.consensusXML \\
+           -out out_clean.consensusXML \\
            -resolve_between_features highest_intensity
   """
 }
@@ -324,12 +323,12 @@ process merge_ids {
     path files_idXML from ch_22.collect()
 
   output:
-    path "out.idXML" into ch_23
+    path "out_merged.idXML" into ch_23
 
   script:
   """
   IDMerger -in ${(files_idXML as List).join(' ')}  \\
-           -out out.idXML
+           -out out_merged.idXML
   """
 }
 
@@ -363,12 +362,13 @@ process protein_quantification {
     path file_idXML from ch_24
 
   output:
-    path "out.csv" into ch_25
+    path "proteins_quant.mzTab" into ch_25
 
   script:
   """
-  ProteinQuantifier -in ${file_idXML}  \\
-                    -out out.csv \\
-                    -mztab out.mzTab
+  ProteinQuantifier -in ${file_consensusXML}  \\
+                    -protein_groups ${file_idXML}  \\
+                    -out proteins_quant.csv \\
+                    -mztab proteins_quant.mzTab
   """
 }
