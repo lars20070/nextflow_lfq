@@ -2,9 +2,19 @@
 
 // clear && nextflow run lfq.nf -ansi-log false -resume
 
+/*
+ * parameters
+ * Input folder containing spectral data as mzML.
+ * Output folder for peptide identification, peptide quantifications and protein quantifications in mzTab.
+ * Protein database with decoys in fasta format. For instructions how to add decoys see below.
+ * DecoyDatabase -decoy_string DECOY_ -in someproteins.fasta -out someproteins_plus_decoys.fasta
+ * https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Documentation/nightly/html/UTILS_DecoyDatabase.html
+ * MS-GF+ search engine executable MSGFPlus.jar For latest release see below.
+ * https://github.com/MSGFPlus/msgfplus/releases
+ */
 params.input = "$baseDir/data/*.mzML"
 params.output = "$baseDir/results"
-params.database = "$baseDir/data/W82_soybase_a2v1_and_pMOZ52.fasta"
+params.database = "$baseDir/data/W82_soybase_a2v1_pMOZ314-315-152_includingDECOY.fasta"
 params.msgfplus = "/Volumes/GoogleDrive/Shared drives/LCMS/Analyses/soybean analysis 20210527/MSGFPlus.jar"
 
 /*
