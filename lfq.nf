@@ -1,26 +1,33 @@
 #!/usr/bin/env nextflow
 
+// clear && nextflow run lfq.nf -ansi-log false -resume
+
+params.input = "$baseDir/data/*.mzML"
+//params.input = "/Users/lars/Code/rnaseq-nf/data/*.mzML"
+params.output = "$baseDir/results"
+params.database = "$baseDir/data/W82_soybase_a2v1_and_pMOZ52.fasta"
+params.msgfplus = "/Volumes/GoogleDrive/Shared drives/LCMS/Analyses/soybean analysis 20210527/MSGFPlus.jar"
+
 /*
  * channels for peptide identification and peptide quantification
- * The channel contains pairs of an unique ID (base name of the file) and the mzML file itself.
- * Note that the unique ID is passed through (nearly) all processes of the workflow in order to match corresponding files.
+ * The channels contain pairs of an unique ID (base name of the mzML file) and the mzML file itself.
+ * Note that the unique ID is passed through (nearly) all processes of the workflow in order to match corresponding files
+ * at later stages. For example, mapping peptide IDs to peptide features in process 'id_mapping'.
  */
-//params.input = "$baseDir/data/*.mzML"
-params.input = "/Users/lars/Code/rnaseq-nf/data/*.mzML"
 Channel.fromPath(params.input).map { file -> [file.baseName, file ]}.into { ch_1; ch_2 }
 
 /*
  * channels for the protein database and the MS-GF+ search engine executable
  */
-params.database = "$baseDir/data/W82_soybase_a2v1_and_pMOZ52.fasta"
-params.msgfplus = "/Volumes/GoogleDrive/Shared drives/LCMS/Analyses/soybean analysis 20210527/MSGFPlus.jar"
 ch_database = Channel.value(params.database)
 ch_msgfplus = Channel.value(params.msgfplus)
 
 /*
- * detect peptide features in MS1 spaectral data
+ * detect peptide features in MS1 spectral data
  */
 process peptide_feature_detection {
+
+  tag "$uid"
 
   input:
     tuple uid, path(file_mzML) from ch_1
@@ -46,22 +53,24 @@ ch_3.into { ch_4; ch_5 }
 /*
  * precursor correction
  * The mass spectrometry machine might have fragmented an incorrect isotopic peak.
- * In that case, we shift the precursor position back to the mono-sicotopic peak.
+ * In that case, we shift the precursor position back to the mono-isotopic peak.
  * This correction simplifies the subsequent database search.
  */
 process precursor_correction {
+
+  tag "$uid"
 
   input:
     tuple uid, path(file_mzML), path(file_featureXML) from ch_2.join(ch_4)
 
   output:
-    tuple uid, path("${uid}.mzML") into ch_6
+    tuple uid, path("${uid}_corrected.mzML") into ch_6
 
   script:
   """
   HighResPrecursorMassCorrector -in ${file_mzML} \\
                                 -feature:in ${file_featureXML} \\
-                                -out ${uid}.mzML
+                                -out ${uid}_corrected.mzML
   """
 }
 
@@ -70,6 +79,8 @@ process precursor_correction {
  * database search with MS-GF+ https://github.com/MSGFPlus/msgfplus
  */
 process peptide_identification {
+
+  tag "$uid"
 
   input:
     tuple uid, path(file_mzML) from ch_6
@@ -102,6 +113,8 @@ process peptide_identification {
  */
 process peptide_indexing {
 
+  tag "$uid"
+
   input:
     tuple uid, path(file_idXML) from ch_7
     path(file_fasta) from ch_database
@@ -131,6 +144,8 @@ ch_8.into { ch_9; ch_10 }
  */
 process false_discovery_rate {
 
+  tag "$uid"
+
   input:
     tuple uid, path(file_idXML) from ch_9
 
@@ -150,11 +165,12 @@ process false_discovery_rate {
 ch_11.into { ch_12; ch_13 }
 
 /*
- * mzTab export od peptide identifications
+ * mzTab export of peptide identifications
  */
 process mztab_export_peptide_id {
 
-  publishDir "$baseDir/data/results", mode: 'copy'
+  tag "$uid"
+  publishDir params.output, mode: 'copy'
 
   input:
     tuple uid, path(file_idXML) from ch_12
@@ -173,6 +189,8 @@ process mztab_export_peptide_id {
  * map peptide IDs to peptide features
  */
 process id_mapping {
+
+  tag "$uid"
 
   input:
     tuple uid, path(file_featureXML), path(file_idXML) from ch_5.join(ch_13)
@@ -262,7 +280,7 @@ ch_18.into { ch_19; ch_20 }
  */
 process mztab_export_peptide_quant {
 
-  publishDir "$baseDir/data/results", mode: 'copy'
+  publishDir params.output, mode: 'copy'
 
   input:
     path file_consensusXML from ch_20
@@ -281,6 +299,8 @@ process mztab_export_peptide_quant {
  * ID posterior error probablility
  */
 process error_probability {
+
+  tag "$uid"
 
   input:
     tuple uid, path(file_idXML) from ch_10
@@ -322,12 +342,12 @@ process protein_inference {
     path file_idXML from ch_23
 
   output:
-    path "out.idXML" into ch_24
+    path "out_inf.idXML" into ch_24
 
   script:
   """
   Epifany -in ${file_idXML}  \\
-          -out out.idXML
+          -out out_inf.idXML
   """
 }
 
@@ -336,7 +356,7 @@ process protein_inference {
  */
 process protein_quantification {
 
-  publishDir "$baseDir/data/results", mode: 'copy'
+  publishDir params.output, mode: 'copy'
 
   input:
     path file_consensusXML from ch_19
@@ -352,4 +372,3 @@ process protein_quantification {
                     -mztab out.mzTab
   """
 }
-
